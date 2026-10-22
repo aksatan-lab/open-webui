@@ -157,6 +157,7 @@
 								>
 									<button
 										aria-hidden={models.length <= 1}
+										tabindex={models.length > 1 ? 0 : -1}
 										aria-label={$i18n.t('Get information on {{name}} in the UI', {
 											name: models[modelIdx]?.name
 										})}
@@ -182,12 +183,17 @@
 						</div>
 					</div>
 
-					<div
+					<h2
 						class=" text-2xl @sm:text-2xl line-clamp-1 flex items-center"
 						in:fade={{ duration: 100 }}
 					>
 						{#if selectedModelName}
-							<Tooltip content={selectedModelName} placement="top" className=" flex items-center ">
+							<Tooltip
+								as="span"
+								content={selectedModelName}
+								placement="top"
+								className=" flex items-center "
+							>
 								<span class="line-clamp-1">
 									{selectedModelName}
 								</span>
@@ -195,7 +201,7 @@
 						{:else}
 							{$i18n.t('Hello, {{name}}', { name: $user?.name })}
 						{/if}
-					</div>
+					</h2>
 				</div>
 
 				<div class="flex mt-1 mb-2">
