@@ -19,7 +19,15 @@
 	const i18n = getContext<typeof import('$lib/i18n').default>('i18n');
 
 	import { goto } from '$app/navigation';
-	import { WEBUI_NAME, config, user, pinnedNotes, mobile, showSidebar } from '$lib/stores';
+	import {
+		WEBUI_NAME,
+		config,
+		user,
+		pinnedNotes,
+		mobile,
+		showSidebar,
+		settings
+	} from '$lib/stores';
 	import {
 		createNewNote,
 		deleteNoteById,
@@ -30,7 +38,7 @@
 		getPinnedNoteList
 	} from '$lib/apis/notes';
 	import { capitalizeFirstLetter, copyToClipboard, formatNumber, getTimeRange } from '$lib/utils';
-	import { downloadPdf, createNoteHandler } from './utils';
+	import { downloadNote, createNoteHandler } from './utils';
 
 	import EllipsisHorizontal from '../icons/EllipsisHorizontal.svelte';
 	import GarbageBin from '../icons/GarbageBin.svelte';
@@ -87,18 +95,10 @@
 
 		if (!note) return;
 
-		if (type === 'txt') {
-			const blob = new Blob([note.data.content.md], { type: 'text/plain' });
-			saveAs(blob, `${note.title}.txt`);
-		} else if (type === 'md') {
-			const blob = new Blob([note.data.content.md], { type: 'text/markdown' });
-			saveAs(blob, `${note.title}.md`);
-		} else if (type === 'pdf') {
-			try {
-				await downloadPdf(note);
-			} catch (error) {
-				toast.error(`${error}`);
-			}
+		try {
+			await downloadNote(note, type);
+		} catch (error) {
+			toast.error(String(error));
 		}
 	};
 
@@ -195,6 +195,11 @@
 	) {
 		init();
 	}
+
+	const noteUrl = (note) =>
+		query && note.data?.page_id
+			? `/notes/${note.id}?page=${encodeURIComponent(note.data.page_id)}&search=${encodeURIComponent(query)}`
+			: `/notes/${note.id}`;
 
 	const getItemsPage = async () => {
 		itemsLoading = true;
@@ -413,6 +418,7 @@
 						<button
 							id="sidebar-toggle-button"
 							class="cursor-pointer flex rounded-lg hover:bg-gray-100 dark:hover:bg-gray-850 transition"
+							aria-label={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}
 							on:click={() => {
 								showSidebar.set(!$showSidebar);
 							}}
@@ -605,23 +611,25 @@
 									<div
 										class="{groupedNotes.length - 1 !== idx ? 'mb-3' : ''} gap-y-0.5 flex flex-col"
 									>
+										<!-- Preserve the former row label for i18n extraction: $i18n.t('Open note') -->
 										{#each notesList as note, idx (note.id)}
-											<button
-												type="button"
-												aria-label={$i18n.t('Open note')}
+											<div
 												class="group flex min-h-8 w-full items-center gap-2 rounded-xl px-2 py-[0.375rem] text-left transition hover:bg-gray-50 focus-within:bg-gray-50 dark:hover:bg-gray-900 dark:focus-within:bg-gray-900"
-												on:click={() => {
-													goto(`/notes/${note.id}`);
+												role="presentation"
+												on:click={(e) => {
+													if (e.target instanceof Element && e.target.closest('a')) return;
+													goto(noteUrl(note));
 												}}
 											>
 												<div class="flex min-w-0 flex-1 items-center gap-2">
 													<Tooltip content={note.title} className="min-w-0" placement="top-start">
-														<div
+														<a
+															href={noteUrl(note)}
 															dir="auto"
-															class="h-[1.25rem] truncate text-[0.8125rem] leading-5 text-gray-800 group-hover:underline dark:text-gray-200"
+															class="focus-ring block h-[1.25rem] truncate rounded text-[0.8125rem] leading-5 text-gray-800 group-hover:underline focus-visible:underline dark:text-gray-200"
 														>
 															{note.title}
-														</div>
+														</a>
 													</Tooltip>
 
 													<Tooltip
@@ -667,7 +675,9 @@
 													{#if shiftKey}
 														<Tooltip content={$i18n.t('Delete')}>
 															<button
-																class="flex size-5 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200"
+																class="flex {($settings?.highContrastMode ?? false)
+																	? 'size-6'
+																	: 'size-5'} shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200"
 																type="button"
 																aria-label={$i18n.t('Delete')}
 																on:click={(e) => {
@@ -681,7 +691,9 @@
 														</Tooltip>
 													{:else}
 														<NoteMenu
-															onAccess={note.user_id === $user?.id || $user?.role === 'admin'
+															onAccess={(note.user_id === $user?.id &&
+																$user?.permissions?.sharing?.notes) ||
+															$user?.role === 'admin'
 																? () => accessModal.open(note.id)
 																: null}
 															show={openNoteMenuId === note.id}
@@ -717,7 +729,9 @@
 															}}
 														>
 															<button
-																class="flex size-5 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200"
+																class="flex {($settings?.highContrastMode ?? false)
+																	? 'size-6'
+																	: 'size-5'} shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200"
 																type="button"
 																aria-label={$i18n.t('Note Menu')}
 																on:click={(e) => {
@@ -731,7 +745,7 @@
 														</NoteMenu>
 													{/if}
 												</div>
-											</button>
+											</div>
 										{/each}
 									</div>
 								{:else if displayOption === 'grid'}
@@ -745,7 +759,7 @@
 												class="group relative flex h-26 min-w-0 w-full flex-col rounded-md border border-black/[0.06] bg-gray-50/40 p-2 text-left transition-colors duration-75 hover:bg-gray-50/40 focus-within:bg-gray-50/40 dark:border-white/[0.06] dark:bg-gray-900 dark:hover:bg-white/4 dark:focus-within:bg-white/4"
 											>
 												<div class="flex min-w-0 items-start">
-													<a href={`/notes/${note.id}`} class="min-w-0 flex-1 pr-5">
+													<a href={noteUrl(note)} class="min-w-0 flex-1 pr-5">
 														<Tooltip content={note.title} placement="top-start">
 															<div
 																class="line-clamp-2 break-words text-xs text-gray-800 dark:text-gray-200"
@@ -758,7 +772,10 @@
 													{#if shiftKey}
 														<Tooltip content={$i18n.t('Delete')}>
 															<button
-																class="absolute right-1 top-1 flex size-5 shrink-0 items-center justify-center rounded text-gray-400 transition hover:bg-gray-50/40 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-white/4 dark:hover:text-gray-400"
+																class="absolute right-1 top-1 flex {($settings?.highContrastMode ??
+																false)
+																	? 'size-6'
+																	: 'size-5'} shrink-0 items-center justify-center rounded text-gray-400 transition hover:bg-gray-50/40 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-white/4 dark:hover:text-gray-400"
 																type="button"
 																aria-label={$i18n.t('Delete')}
 																on:click={(e) => {
@@ -772,7 +789,9 @@
 														</Tooltip>
 													{:else}
 														<NoteMenu
-															onAccess={note.user_id === $user?.id || $user?.role === 'admin'
+															onAccess={(note.user_id === $user?.id &&
+																$user?.permissions?.sharing?.notes) ||
+															$user?.role === 'admin'
 																? () => accessModal.open(note.id)
 																: null}
 															onDownload={(type) => {
@@ -804,7 +823,10 @@
 															}}
 														>
 															<button
-																class="absolute right-1 top-1 flex size-5 shrink-0 items-center justify-center rounded text-gray-400 transition hover:bg-gray-50/40 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-white/4 dark:hover:text-gray-400"
+																class="absolute right-1 top-1 flex {($settings?.highContrastMode ??
+																false)
+																	? 'size-6'
+																	: 'size-5'} shrink-0 items-center justify-center rounded text-gray-400 transition hover:bg-gray-50/40 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-white/4 dark:hover:text-gray-400"
 																type="button"
 																aria-label={$i18n.t('Note Menu')}
 															>
@@ -815,7 +837,7 @@
 												</div>
 
 												<a
-													href={`/notes/${note.id}`}
+													href={noteUrl(note)}
 													class="mt-2 min-h-0 flex-1 overflow-hidden text-[0.6875rem] leading-4 text-gray-500 dark:text-gray-400"
 													style="mask-image: linear-gradient(to bottom, black 65%, transparent 100%);"
 												>
@@ -824,7 +846,7 @@
 													</div>
 												</a>
 
-												<a href={`/notes/${note.id}`} class="mt-2 block min-w-0">
+												<a href={noteUrl(note)} class="mt-2 block min-w-0">
 													<div
 														class="flex min-w-0 w-full items-center justify-between gap-1 text-[0.5625rem] leading-3 text-gray-500 dark:text-gray-400"
 													>

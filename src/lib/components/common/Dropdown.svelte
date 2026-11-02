@@ -61,9 +61,14 @@
 		});
 		resizeObserver.observe(node);
 
+		// Items can render after the menu opens, e.g. an async list.
+		const mutationObserver = new MutationObserver(markMenuItems);
+		mutationObserver.observe(node, { childList: true, subtree: true });
+
 		return {
 			destroy() {
 				resizeObserver.disconnect();
+				mutationObserver.disconnect();
 				lastContentHeight = 0;
 				if (node.parentNode) {
 					node.parentNode.removeChild(node);
@@ -245,8 +250,15 @@
 		}
 	}
 
+	function markMenuItems() {
+		contentEl
+			?.querySelectorAll('button:not([role]), a[href]:not([role])')
+			.forEach((item) => item.setAttribute('role', 'menuitem'));
+	}
+
 	async function afterOpen() {
 		await tick();
+		markMenuItems();
 		positionContent();
 
 		// Re-check after transition renders real dimensions
@@ -258,8 +270,15 @@
 
 		if (shouldFocusContent) {
 			shouldFocusContent = false;
+			const firstControl = contentEl?.querySelector<HTMLElement>(
+				'button:not([disabled]), a[href], input'
+			);
 			(
-				contentEl?.querySelector<HTMLElement>('button:not([disabled]), a[href], input') ?? contentEl
+				(firstControl?.matches('input')
+					? firstControl
+					: contentEl?.querySelector<HTMLElement>('[role^="menuitem"]:not([disabled])')) ??
+				firstControl ??
+				contentEl
 			)?.focus();
 		}
 	}
@@ -315,8 +334,11 @@
 		if (triggerEl?.contains(event.target)) return;
 		if (contentEl?.contains(event.target)) return;
 		// Submenus and listboxes can be portaled outside contentEl.
-		if (event.target instanceof Element && event.target.closest('[role="menu"], [role="listbox"]'))
-			return;
+		const portaled =
+			event.target instanceof Element
+				? event.target.closest('[role="menu"], [role="listbox"]')
+				: null;
+		if (portaled && !portaled.contains(triggerEl)) return;
 		event.preventDefault();
 		event.stopPropagation();
 		closeDropdown(false);
@@ -325,6 +347,27 @@
 	function handleKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape' && show) {
 			closeDropdown();
+		}
+
+		if (
+			['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) &&
+			event.target instanceof HTMLElement &&
+			event.target.matches('[role^="menuitem"]') &&
+			contentEl?.contains(event.target)
+		) {
+			const items = [
+				...contentEl.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([disabled])')
+			].filter((item) => item.getClientRects().length > 0);
+			const index = items.indexOf(event.target);
+			const nextIndex =
+				event.key === 'Home'
+					? 0
+					: event.key === 'End'
+						? items.length - 1
+						: (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+
+			event.preventDefault();
+			items[nextIndex]?.focus();
 		}
 	}
 

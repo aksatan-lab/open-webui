@@ -60,7 +60,7 @@
 	aria-selected={isSelected}
 	aria-label={$i18n.t('Select {{modelName}} model', { modelName: item.label })}
 	aria-describedby={localizedDescription ? `model-description-${index}` : undefined}
-	class="focus-ring group/item flex h-8 w-full cursor-pointer select-none items-center rounded-xl px-2 text-left text-[0.8125rem] font-normal text-gray-700 outline-hidden transition-colors duration-75 dark:text-gray-100 {($settings?.highContrastMode ??
+	class="focus-ring group/item relative flex h-8 w-full cursor-pointer select-none items-center rounded-xl px-2 text-left text-[0.8125rem] font-normal text-gray-700 outline-hidden transition-colors duration-75 dark:text-gray-100 {($settings?.highContrastMode ??
 	false)
 		? 'hover:bg-gray-200 dark:hover:bg-gray-800'
 		: 'hover:bg-gray-50/40 dark:hover:bg-gray-800/40'} {index === selectedModelIdx &&
@@ -75,6 +75,9 @@
 		: ''}"
 	data-arrow-selected={index === selectedModelIdx}
 	data-value={item.value}
+	on:focus={() => {
+		selectedModelIdx = index;
+	}}
 	on:click={() => {
 		onClick();
 	}}
@@ -263,6 +266,7 @@
 						content={`${marked.parse(
 							sanitizeResponseContent(localizedDescription).replaceAll('\n', '<br>')
 						)}`}
+						allowHTML={true}
 					>
 						<div class=" translate-y-[1px]">
 							<svg
@@ -286,14 +290,20 @@
 		</div>
 	</div>
 
-	<div class="ml-auto flex shrink-0 items-center gap-1.5 pl-2">
+	<div
+		class="ml-auto flex shrink-0 items-center {($settings?.highContrastMode ?? false)
+			? 'gap-0.5'
+			: 'gap-1.5'} pl-2"
+	>
 		{#if !selectionOnly && $user?.role === 'admin' && item.model.loaded}
 			<Tooltip
 				content={`${$i18n.t('Eject')}`}
 				className="flex-shrink-0 group-hover/item:opacity-100 group-focus-within/item:opacity-100 opacity-0 "
 			>
 				<button
-					class="focus-ring flex"
+					class="focus-ring flex {($settings?.highContrastMode ?? false)
+						? 'size-6 items-center justify-center rounded-lg'
+						: ''}"
 					aria-label={$i18n.t('Eject model')}
 					on:click={(e) => {
 						e.preventDefault();
@@ -319,7 +329,9 @@
 			>
 				<button
 					aria-label={`${$i18n.t('More Options')}`}
-					class="focus-ring flex"
+					class="focus-ring flex {($settings?.highContrastMode ?? false)
+						? 'size-6 items-center justify-center rounded-lg'
+						: ''}"
 					on:click={(e) => {
 						e.preventDefault();
 						e.stopPropagation();

@@ -311,6 +311,8 @@
 	</title>
 </svelte:head>
 
+<h1 class="sr-only">{$i18n.t('Knowledge')}</h1>
+
 {#if loaded}
 	<DeleteConfirmDialog
 		bind:show={showDeleteConfirm}
@@ -319,7 +321,7 @@
 		}}
 	/>
 
-	<Modal bind:show={showCreateModal} size="md">
+	<Modal bind:show={showCreateModal} size="md" ariaLabel={$i18n.t('Create a knowledge base')}>
 		<CreateKnowledgeBase
 			modal={true}
 			onBack={() => {
@@ -441,18 +443,10 @@
 							{@const metaPreview = getKnowledgeMetaPreview(item)}
 							<div
 								class="group flex min-h-8 w-full cursor-pointer items-center gap-2 overflow-hidden rounded-xl px-2 py-1 text-left"
-								role="button"
-								tabindex="0"
+								role="presentation"
 								on:click={(e) => {
 									if (shouldIgnoreRowClick(e.target)) return;
 									openKnowledge(item);
-								}}
-								on:keydown={(e) => {
-									if (e.currentTarget !== e.target) return;
-									if (e.key === 'Enter' || e.key === ' ') {
-										e.preventDefault();
-										openKnowledge(item);
-									}
 								}}
 							>
 								<div class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
@@ -464,11 +458,18 @@
 													className="min-w-0"
 													placement="top-start"
 												>
-													<div
-														class="truncate text-[0.8125rem] leading-5 text-gray-800 group-hover:underline dark:text-gray-200"
-													>
-														{item.name}
-													</div>
+													{#if !item?.meta?.document}
+														<a
+															href={`/workspace/knowledge/${item.id}`}
+															class="focus-ring block truncate rounded text-[0.8125rem] leading-5 text-gray-800 group-hover:underline focus-visible:underline dark:text-gray-200"
+															>{item.name}</a
+														>
+													{:else}
+														<span
+															class="block truncate text-[0.8125rem] leading-5 text-gray-800 group-hover:underline dark:text-gray-200"
+															>{item.name}</span
+														>
+													{/if}
 												</Tooltip>
 
 												{#if item?.meta?.source === 'external'}
@@ -534,7 +535,10 @@
 								{#if item?.write_access || $user?.role === 'admin'}
 									<div class="ml-2 flex shrink-0 flex-row items-center self-center">
 										<ItemMenu
-											accessHandler={() => accessModal.open(item.id)}
+											accessHandler={$user?.permissions?.sharing?.knowledge ||
+											$user?.role === 'admin'
+												? () => accessModal.open(item.id)
+												: null}
 											onExport={$user?.role === 'admin'
 												? () => {
 														exportHandler(item);

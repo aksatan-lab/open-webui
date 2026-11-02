@@ -15,6 +15,7 @@
 </script>
 
 <script lang="ts">
+	import { visibleControls } from '$lib/stores';
 	import { toast } from 'svelte-sonner';
 	import dayjs, { getDayjsLocale } from '$lib/dayjs';
 	import relativeTime from 'dayjs/plugin/relativeTime';
@@ -96,6 +97,8 @@
 	export let selected = false;
 	export let shiftKey = false;
 	export let readonly = false;
+	export let canMove = false;
+	export let canRename = false;
 
 	export let ownerName: string | null = null;
 	export let ownerUserId: string | null = null;
@@ -211,7 +214,7 @@
 	};
 
 	const renameChatFromDoubleClick = async (e: MouseEvent) => {
-		if (readonly || selecting || e.shiftKey) return;
+		if ((readonly && !canRename) || selecting || e.shiftKey) return;
 		e.preventDefault();
 		e.stopPropagation();
 
@@ -242,16 +245,20 @@
 	let showShareChatModal = false;
 	let confirmEdit = false;
 
-	let chatTitle = title;
+	let chatTitle = '';
 
 	const editChatTitle = async (id, title) => {
 		title = title?.trim();
 		if (!title) {
 			toast.error($i18n.t('Title cannot be an empty string.'));
 		} else {
-			await updateChatById(localStorage.token, id, {
+			const res = await updateChatById(localStorage.token, id, {
 				title: title
+			}).catch((error) => {
+				toast.error(`${error}`);
+				return null;
 			});
+			if (!res) return;
 
 			if (id === $chatId) {
 				_chatTitle.set(title);
@@ -573,7 +580,9 @@
 			dir="auto"
 			class="text-left self-center overflow-hidden w-full h-5 truncate {unread
 				? 'font-normal text-gray-800 dark:text-gray-200'
-				: ''} {($mobile || showInlineActions) && !readonly && !selecting ? 'pr-12' : ''}"
+				: ''} {($mobile || showInlineActions) && (!readonly || canRename) && !selecting
+				? 'pr-12'
+				: ''}"
 		>
 			{title}
 		</div>
@@ -588,7 +597,7 @@
 	{/if}
 
 	<!-- Time ago indicator -->
-	{#if (updatedAt ?? createdAt) && !showInlineActions && !($mobile && !readonly)}
+	{#if (updatedAt ?? createdAt) && !showInlineActions && !($mobile && (!readonly || canRename))}
 		<div
 			class="shrink-0 self-center text-[0.625rem] text-gray-400 dark:text-gray-500 pl-2"
 			aria-hidden="true"
@@ -632,7 +641,7 @@
 	data-sidebar-chat-readonly={readonly}
 	bind:this={itemElement}
 	class=" w-full {className} relative group"
-	draggable={!confirmEdit && !readonly && !selecting}
+	draggable={!confirmEdit && (!readonly || canMove) && !selecting}
 	on:mouseenter={() => {
 		mouseOver = true;
 	}}
@@ -763,7 +772,7 @@
 		</div>
 	{/if}
 
-	{#if !readonly && !selecting}
+	{#if (!readonly || (canRename && !confirmEdit)) && !selecting}
 		<div
 			id="sidebar-chat-item-menu"
 			class="{$mobile
@@ -791,20 +800,22 @@
 						</button>
 					</Tooltip>
 				</div>
-			{:else if shiftKey && mouseOver && !chatSelection}
+			{:else if !readonly && shiftKey && mouseOver && !chatSelection}
 				<div class=" flex items-center self-center space-x-1.5">
-					<Tooltip content={$i18n.t('Archive')} className="flex items-center">
-						<button
-							class="flex size-5 items-center justify-center self-center dark:hover:text-white transition disabled:cursor-not-allowed"
-							disabled={archiving}
-							on:click={() => {
-								archiveChatHandler(id);
-							}}
-							type="button"
-						>
-							<ArchiveBoxIcon className="size-3.5" strokeWidth="1.7" />
-						</button>
-					</Tooltip>
+					{#if $visibleControls['chat.archive']}
+						<Tooltip content={$i18n.t('Archive')} className="flex items-center">
+							<button
+								class="flex size-5 items-center justify-center self-center dark:hover:text-white transition disabled:cursor-not-allowed"
+								disabled={archiving}
+								on:click={() => {
+									archiveChatHandler(id);
+								}}
+								type="button"
+							>
+								<ArchiveBoxIcon className="size-3.5" strokeWidth="1.7" />
+							</button>
+						</Tooltip>
+					{/if}
 
 					{#if $user?.role === 'admin' || ($user?.permissions?.chat?.delete ?? true)}
 						<Tooltip content={$i18n.t('Delete')}>
@@ -824,6 +835,7 @@
 			{:else}
 				<div class="flex self-center z-10 items-end">
 					<ChatMenu
+						{readonly}
 						chatId={id}
 						cloneChatHandler={() => {
 							cloneChatHandler(id);
@@ -855,7 +867,9 @@
 						<button
 							type="button"
 							aria-label={$i18n.t('Chat Menu')}
-							class="flex size-5 items-center justify-center self-center dark:hover:text-white transition m-0"
+							class="flex {($settings?.highContrastMode ?? false)
+								? 'size-6'
+								: 'size-5'} items-center justify-center self-center dark:hover:text-white transition m-0"
 						>
 							<MoreHorizontalIcon className="size-3.5" strokeWidth="2" />
 						</button>

@@ -94,7 +94,7 @@
 	let availableModelIds = new Set<string>();
 
 	let filteredModels = [];
-	let selectedModelId = null;
+	let selectedModelId: string | null = null;
 
 	let showManageModal = false;
 	let showResetModal = false;
@@ -1084,6 +1084,7 @@
 														? `${model?.ollama?.digest} **(${model?.ollama?.modified_at})**`
 														: model.id
 											)}
+											allowHTML={true}
 											className="min-w-0 flex-1"
 											placement="top-start"
 										>
@@ -1277,6 +1278,7 @@
 										<button
 											class="self-center w-fit text-sm p-1.5 dark:text-gray-300 dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl"
 											type="button"
+											aria-label={$i18n.t('More Options')}
 										>
 											<EllipsisHorizontal className="size-3.5" />
 										</button>
@@ -1290,6 +1292,7 @@
 										>
 											<Switch
 												bind:state={model.is_active}
+												ariaLabel={$i18n.t('Enabled')}
 												on:change={async () => {
 													toggleModelHandler(model);
 												}}
@@ -1340,7 +1343,11 @@
 			admin
 			edit
 			model={models.find((m) => m.id === selectedModelId)}
+			providerModel={allModels.find((m) => m.id === selectedModelId)}
 			preset={false}
+			onAccessUpdate={(model) => {
+				savedModels = [...savedModels.filter((m) => m.id !== model.id), model];
+			}}
 			onSubmit={async (model) => {
 				console.log(model);
 				if (!(await upsertModelHandler(model))) {

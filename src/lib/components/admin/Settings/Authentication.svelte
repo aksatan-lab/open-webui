@@ -34,6 +34,7 @@
 		host: '',
 		port: null,
 		attribute_for_mail: 'mail',
+		default_email_domain: '',
 		attribute_for_username: 'uid',
 		app_dn: '',
 		app_dn_password: '',
@@ -153,8 +154,10 @@
 				<AdminSettingRow
 					label={$i18n.t('settings.admin.authentication.defaultUserRole.label')}
 					description={$i18n.t('settings.admin.authentication.defaultUserRole.description')}
+					let:labelId
 				>
 					<SettingsSelect
+						id={`${labelId}-control`}
 						bind:value={adminConfig.DEFAULT_USER_ROLE}
 						placeholder={$i18n.t('Select a role')}
 					>
@@ -167,8 +170,10 @@
 				<AdminSettingRow
 					label={$i18n.t('settings.admin.authentication.defaultGroup.label')}
 					description={$i18n.t('settings.admin.authentication.defaultGroup.description')}
+					let:labelId
 				>
 					<SettingsSelect
+						id={`${labelId}-control`}
 						bind:value={adminConfig.DEFAULT_GROUP_ID}
 						placeholder={$i18n.t('Select a group')}
 					>
@@ -475,6 +480,17 @@
 						</Tooltip>
 					</AdminSettingField>
 				</div>
+
+				<AdminSettingField
+					label={$i18n.t('settings.admin.authentication.defaultEmailDomain.label')}
+					description={$i18n.t('settings.admin.authentication.defaultEmailDomain.description')}
+				>
+					<input
+						class={inputClass}
+						placeholder="example.com"
+						bind:value={LDAP_SERVER.default_email_domain}
+					/>
+				</AdminSettingField>
 
 				<AdminSettingField
 					label={$i18n.t('settings.admin.authentication.searchBase.label')}
